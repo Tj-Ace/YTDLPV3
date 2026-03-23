@@ -1,43 +1,75 @@
-# YTDLPV3
+# YTDLP V3
 
-# How To Download :D
-Thanks For Downloading :)
+Thanks for downloading :)
 
-This Requires Python, Everything Else Should Install Automatiacally
+---
 
-For Latest Stable Build Head To Releases Over There
+## How To Download
 
------------------------------------------------->
+This requires Python. Everything else should install automatically.
 
-And Download The Latest Version For Your Platform
+For the latest stable build:
+- Head over to **Releases**
+- Download the latest version for your platform
+- (For latest beta build download direct project files)
 
-(Windows Only Rn, Plan On Adding Android APK)
+(Windows only right now, Android APK planned)
 
-Extract The Zip To Wherever You Want And Run Desktop.py
+---
 
-This Creates A Desktop Shortcut To MainScript.py (The Main Script, Duh)
+## Setup
 
-If You Want To Theres A Config Where You Can Change A Few Settings
+1. Extract the `.zip` wherever you want  
+2. Run `Desktop.py`  
 
-You Can Also Just Maually Run MainScript.py And It Will Open
+This will create a desktop shortcut to `MainScript.py` (the main script, duh)
 
-The First Time You Run This It Should Download The Python Packages It Needs Automatically
+If you want, you can just manually run `MainScript.py` and it will open
 
+---
 
+## First Run
 
-# Features :)
-Basic Video Downloading - Mp4 Format
+The first time you run it:
+- Required Python packages will install automatically  
 
-Drag And Drop Videos Into Gui
+---
 
-Live Terminal Visualization And Progress Bar - Along With ETA And Progress Info
+## Config
 
-Aria2C Acceleration For Quicker Downloads
+There is a config file where you can change:
+- Colors  
+- Resolution  
+- Other small settings  
 
-Audio Only Options For Songs - Mp3 File Format
+---
 
-Easy Thumbnail Download Toggle - Png File Format
-  
-Easy Video Download Location Selection - Ability To Set New Defaults
+## Features
 
-Easy Config To Personalized Colours And Resolution
+**Basic Video Downloading**  
+- MP4 format  
+
+**Drag and Drop GUI**  
+- Drop videos directly into the app  
+
+**Live Terminal Output**  
+- Progress bar  
+- ETA  
+- Detailed download info  
+
+**Aria2c Acceleration**  
+- Faster downloads :D  
+
+**Audio Only Mode**  
+- MP3 format  
+
+**Thumbnail Download Toggle**  
+- PNG format  
+
+**Download Location Selection**  
+- Set custom defaults  
+
+**Custom Config**  
+- Personalize colors and resolution  
+
+---
