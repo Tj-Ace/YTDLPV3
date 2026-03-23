@@ -7,11 +7,5 @@
     "resolution": {
         "width": 1200,
         "height": 800
-    },
-    "_comments": [
-        "Basic Colours:",
-        "#b478fa = Lavender",
-        "#00ff00 = Lime",
-        "#ffffff = White"
-    ]
+    }
 }
