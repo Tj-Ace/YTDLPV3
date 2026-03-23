@@ -10,6 +10,10 @@ import shutil
 import time
 import atexit
 import json
+import tempfile
+import zipfile
+import urllib.request
+import urllib.error
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -33,16 +37,32 @@ import threading
 import ctypes
 import yt_dlp.downloader.external as yt_dlp_external
 
+APP_USER_MODEL_ID = "yt_dlp.downloader.app"
+HTTP_USER_AGENT = "YTDLP-Downloader"
+SW_MINIMIZE = 6
+
 
 # =========================================================
 # WINDOWS TASKBAR ICON FIX
 # =========================================================
 try:
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-        "yt_dlp.downloader.app"
+        APP_USER_MODEL_ID
     )
 except:
     pass
+
+
+def minimize_console_window():
+    try:
+        console_window = ctypes.windll.kernel32.GetConsoleWindow()
+        if console_window:
+            ctypes.windll.user32.ShowWindow(console_window, SW_MINIMIZE)
+    except Exception:
+        pass
+
+
+minimize_console_window()
 
 
 # =========================================================
@@ -50,6 +70,24 @@ except:
 # =========================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "Config.json")
+ARIA2C_INSTALL_DIR = os.path.join(SCRIPT_DIR, "aria2c")
+ARIA2C_RELEASE_API = "https://api.github.com/repos/aria2/aria2/releases/latest"
+ARIA2C_ASSET_SUFFIX = "win-64bit-build1.zip"
+STARTUP_MESSAGES = []
+
+
+def queue_startup_message(message):
+    if message:
+        STARTUP_MESSAGES.append(message.rstrip() + "\n")
+
+
+def build_request(url, accept_json=False):
+    headers = {"User-Agent": HTTP_USER_AGENT}
+
+    if accept_json:
+        headers["Accept"] = "application/vnd.github+json"
+
+    return urllib.request.Request(url, headers=headers)
 
 
 def normalize_color(value, default):
@@ -134,7 +172,7 @@ if WINDOW_FULLSCREEN:
 # LOAD WINDOW ICON
 # =========================================================
 try:
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "favi.ico")
+    icon_path = os.path.join(SCRIPT_DIR, "favi.ico")
 
     if os.path.exists(icon_path):
         window.iconbitmap(icon_path)
@@ -162,20 +200,89 @@ ARIA2C_ARGS = [
 
 
 def find_aria2c():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     local_candidates = (
-        os.path.join(script_dir, "aria2c.exe"),
-        os.path.join(script_dir, "aria2c"),
+        os.path.join(SCRIPT_DIR, "aria2c.exe"),
+        os.path.join(SCRIPT_DIR, "aria2c"),
+        os.path.join(ARIA2C_INSTALL_DIR, "aria2c.exe"),
+        os.path.join(ARIA2C_INSTALL_DIR, "aria2c"),
     )
 
     for candidate in local_candidates:
         if os.path.isfile(candidate):
             return candidate
 
+    if os.path.isdir(ARIA2C_INSTALL_DIR):
+        for root, _, files in os.walk(ARIA2C_INSTALL_DIR):
+            for file_name in files:
+                if file_name.lower() == "aria2c.exe":
+                    return os.path.join(root, file_name)
+
     return shutil.which("aria2c")
 
 
-ARIA2C_PATH = find_aria2c()
+def fetch_latest_aria2_download():
+    request = build_request(ARIA2C_RELEASE_API, accept_json=True)
+
+    with urllib.request.urlopen(request, timeout=15) as response:
+        release_data = json.load(response)
+
+    for asset in release_data.get("assets", []):
+        asset_name = str(asset.get("name", "")).strip()
+        download_url = str(asset.get("browser_download_url", "")).strip()
+
+        if asset_name.endswith(ARIA2C_ASSET_SUFFIX) and download_url:
+            return download_url, str(release_data.get("tag_name", asset_name)).strip()
+
+    raise RuntimeError("Official Windows aria2 asset was not found in the latest release.")
+
+
+def auto_install_aria2c():
+    existing_path = find_aria2c()
+
+    if existing_path:
+        return (
+            existing_path,
+            "aria2c detected. Faster multi-connection downloads are enabled by default.",
+        )
+
+    temp_dir = tempfile.mkdtemp(prefix="aria2c_")
+
+    try:
+        queue_startup_message("aria2c not found. Attempting automatic install...")
+        download_url, release_tag = fetch_latest_aria2_download()
+        archive_name = os.path.basename(download_url.split("?", 1)[0]) or "aria2c.zip"
+        archive_path = os.path.join(temp_dir, archive_name)
+        download_request = build_request(download_url)
+
+        with urllib.request.urlopen(download_request, timeout=30) as response, open(archive_path, "wb") as archive_file:
+            shutil.copyfileobj(response, archive_file)
+
+        os.makedirs(ARIA2C_INSTALL_DIR, exist_ok=True)
+
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            archive.extractall(ARIA2C_INSTALL_DIR)
+
+        installed_path = find_aria2c()
+
+        if installed_path:
+            queue_startup_message(f"aria2c auto-installed successfully from {release_tag}.")
+            return (
+                installed_path,
+                "aria2c auto-installed. Faster multi-connection downloads are enabled by default.",
+            )
+
+        raise RuntimeError("Download finished, but aria2c.exe was not found after extraction.")
+    except (OSError, urllib.error.URLError, zipfile.BadZipFile, RuntimeError, json.JSONDecodeError) as exc:
+        queue_startup_message(f"aria2c auto-install failed: {exc}")
+        return (
+            None,
+            "aria2c auto-install failed. The app will continue without acceleration.",
+        )
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+ARIA2C_PATH, ARIA2C_STATUS_TEXT = auto_install_aria2c()
 UI_QUEUE = queue.Queue()
 ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 elapsed_started_at = None
@@ -371,8 +478,7 @@ def is_aria2_command(args):
 
 
 def normalize_aria2_line(text):
-    cleaned = ANSI_ESCAPE_RE.sub("", text).replace("\r", "").strip()
-    return cleaned
+    return ANSI_ESCAPE_RE.sub("", text).replace("\r", "").strip()
 
 
 def update_stats_from_aria2_output(text):
@@ -478,21 +584,21 @@ yt_dlp_external.Popen = UIPopen
 
 
 class YTDLPLogger:
-    def debug(self, message):
+    def _write(self, prefix, message):
         if message:
-            append_terminal(f"{message}\n")
+            append_terminal(f"{prefix}{message}\n")
+
+    def debug(self, message):
+        self._write("", message)
 
     def info(self, message):
-        if message:
-            append_terminal(f"{message}\n")
+        self._write("", message)
 
     def warning(self, message):
-        if message:
-            append_terminal(f"WARNING: {message}\n")
+        self._write("WARNING: ", message)
 
     def error(self, message):
-        if message:
-            append_terminal(f"ERROR: {message}\n")
+        self._write("ERROR: ", message)
 
 
 # =========================================================
@@ -537,23 +643,17 @@ def progress_hook(d):
 def get_format_choice():
 
     quality = quality_var.get()
+    quality_map = {
+        "Max": "bv*+ba/b",
+        "1080p": "bestvideo[height<=1080]+bestaudio/best",
+        "720p": "bestvideo[height<=720]+bestaudio/best",
+        "480p": "bestvideo[height<=480]+bestaudio/best",
+    }
 
     if audio_only_var.get():
         return "bestaudio/best"
 
-    if quality == "Max":
-        return "bv*+ba/b"
-
-    if quality == "1080p":
-        return "bestvideo[height<=1080]+bestaudio/best"
-
-    if quality == "720p":
-        return "bestvideo[height<=720]+bestaudio/best"
-
-    if quality == "480p":
-        return "bestvideo[height<=480]+bestaudio/best"
-
-    return "bestvideo+bestaudio/best"
+    return quality_map.get(quality, "bestvideo+bestaudio/best")
 
 
 # =========================================================
@@ -788,13 +888,11 @@ variable=use_aria2_var,bg="#2b2b2b",fg=ACCENT_COLOR,
 selectcolor="#1e1e1e",font=("Consolas",11),
 state=NORMAL if ARIA2C_PATH else DISABLED).pack(anchor="w")
 
+aria2_status_var = StringVar(value=ARIA2C_STATUS_TEXT)
+
 Label(
     options_frame,
-    text=(
-        "aria2c detected. Faster multi-connection downloads are enabled by default."
-        if ARIA2C_PATH else
-        "aria2c not found. Add aria2c.exe next to MainScript.py or put it on PATH, then restart the app."
-    ),
+    textvariable=aria2_status_var,
     bg="#2b2b2b",
     fg="#888",
     font=("Consolas",10),
@@ -899,6 +997,9 @@ terminal = Text(
 terminal.pack(fill=BOTH,expand=True,padx=10,pady=10)
 
 process_ui_queue()
+
+for startup_message in STARTUP_MESSAGES:
+    append_terminal(startup_message)
 
 append_terminal("Terminal ready...\n")
 
