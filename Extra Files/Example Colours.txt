@@ -1,0 +1,32 @@
+Lavender - #b478fa
+White - #ffffff
+Lime - #00ff00
+Black - #000000
+Red - #ff0000
+Blue - #0000ff
+Green - #008000
+Yellow - #ffff00
+Cyan - #00ffff
+Magenta - #ff00ff
+Orange - #ffa500
+Purple - #800080
+Pink - #ffc0cb
+Brown - #a52a2a
+Gray - #808080
+Light Gray - #d3d3d3
+Dark Gray - #404040
+Gold - #ffd700
+Silver - #c0c0c0
+Navy - #000080
+Teal - #008080
+Olive - #808000
+Sky Blue - #87ceeb
+Violet - #ee82ee
+Indigo - #4b0082
+Coral - #ff7f50
+Salmon - #fa8072
+Mint - #98ff98
+Turquoise - #40e0d0
+Crimson - #dc143c
+Beige - #f5f5dc
+Ivory - #fffff0
