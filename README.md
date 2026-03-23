@@ -1,5 +1,30 @@
 # YTDLPV3
 
+# How To Download :D
+Thanks For Downloading :)
+
+This Requires Python, Everything Else Should Install Automatiacally
+
+For Latest Stable Build Head To Releases Over There
+
+------------------------------------------------>
+
+And Download The Latest Version For Your Platform
+
+(Windows Only Rn, Plan On Adding Android APK)
+
+Extract The Zip To Wherever You Want And Run Desktop.py
+
+This Creates A Desktop Shortcut To MainScript.py (The Main Script, Duh)
+
+If You Want To Theres A Config Where You Can Change A Few Settings
+
+You Can Also Just Maually Run MainScript.py And It Will Open
+
+The First Time You Run This It Should Download The Python Packages It Needs Automatically
+
+
+
 # Features :)
 Basic Video Downloading - Mp4 Format
 
