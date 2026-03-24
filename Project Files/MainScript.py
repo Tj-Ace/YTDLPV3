@@ -14,6 +14,7 @@ import tempfile
 import zipfile
 import urllib.request
 import urllib.error
+import urllib.parse
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -39,6 +40,17 @@ import yt_dlp.downloader.external as yt_dlp_external
 
 APP_USER_MODEL_ID = "yt_dlp.downloader.app"
 HTTP_USER_AGENT = "YTDLP-Downloader"
+GENERIC_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+)
+YOUTUBE_HOST_MARKERS = (
+    "youtube.com",
+    "youtu.be",
+    "youtube-nocookie.com",
+    "googlevideo.com",
+)
+GENERIC_SITE_FALLBACK_FORMAT = "best/b"
 SW_MINIMIZE = 6
 
 
@@ -583,10 +595,56 @@ class UIPopen(yt_dlp_external.Popen):
 yt_dlp_external.Popen = UIPopen
 
 
+def is_aria2_failure_message(message):
+    normalized = str(message or "").lower()
+
+    return (
+        "aria2c exited with code" in normalized
+        or ("aria2" in normalized and "errorcode=22" in normalized)
+        or ("aria2" in normalized and "status=403" in normalized)
+    )
+
+
+def get_url_host(url):
+    parsed = urllib.parse.urlparse(str(url or "").strip())
+    return parsed.netloc.lower()
+
+
+def is_youtube_like_url(url):
+    host = get_url_host(url)
+    return any(marker in host for marker in YOUTUBE_HOST_MARKERS)
+
+
+def build_generic_site_headers(url):
+    headers = {
+        "User-Agent": GENERIC_BROWSER_USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    parsed = urllib.parse.urlparse(str(url or "").strip())
+
+    if parsed.scheme and parsed.netloc:
+        headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
+
+    return headers
+
+
 class YTDLPLogger:
+    def __init__(self):
+        self.aria2_failed = False
+
+    def _track_message(self, message):
+        text = str(message or "")
+
+        if text and is_aria2_failure_message(text):
+            self.aria2_failed = True
+
+        return text
+
     def _write(self, prefix, message):
-        if message:
-            append_terminal(f"{prefix}{message}\n")
+        text = self._track_message(message)
+
+        if text:
+            append_terminal(f"{prefix}{text}\n")
 
     def debug(self, message):
         self._write("", message)
@@ -638,6 +696,159 @@ def progress_hook(d):
 
     if d["status"] == "finished":
         set_download_stats(percent=100, eta="0s")
+
+
+def build_ydl_options(
+    format_choice,
+    target_folder,
+    download_thumbnail,
+    audio_only,
+    use_aria2=False,
+    http_headers=None,
+    hls_prefer_native=False,
+):
+    logger = YTDLPLogger()
+    ydl_opts = {
+        "format": format_choice,
+        "merge_output_format": "mp4",
+        "noplaylist": False,
+        "retries": 10,
+        "fragment_retries": 10,
+        "ignoreerrors": True,
+        "extract_flat": False,
+        "progress_hooks": [progress_hook],
+        "logger": logger,
+        "outtmpl": os.path.join(target_folder, "%(title)s.%(ext)s"),
+    }
+
+    if http_headers:
+        ydl_opts["http_headers"] = dict(http_headers)
+
+    if hls_prefer_native:
+        ydl_opts["hls_prefer_native"] = True
+
+    if use_aria2:
+        ydl_opts["external_downloader"] = {
+            "default": ARIA2C_PATH,
+        }
+        ydl_opts["external_downloader_args"] = {
+            "default": ARIA2C_ARGS,
+        }
+
+    if download_thumbnail:
+        ydl_opts["writethumbnail"] = True
+        ydl_opts.setdefault("postprocessors", []).append({
+            "key": "FFmpegThumbnailsConvertor",
+            "format": "png"
+        })
+
+    if audio_only:
+        ydl_opts.setdefault("postprocessors", []).append({
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        })
+
+    return ydl_opts, logger
+
+
+def download_url_with_fallback(
+    download_url,
+    format_choice,
+    target_folder,
+    download_thumbnail,
+    audio_only,
+    use_aria2,
+):
+    is_generic_site = not is_youtube_like_url(download_url)
+    generic_headers = build_generic_site_headers(download_url) if is_generic_site else None
+    attempts = [
+        {
+            "label": None,
+            "format_choice": format_choice,
+            "use_aria2": use_aria2,
+            "http_headers": None,
+            "hls_prefer_native": False,
+        }
+    ]
+
+    if use_aria2:
+        attempts.append({
+            "label": (
+                "aria2c failed on this media URL. Retrying without aria2c and "
+                "disabling acceleration for the rest of this batch.\n"
+            ),
+            "requires_aria2_failure": True,
+            "format_choice": format_choice,
+            "use_aria2": False,
+            "http_headers": None,
+            "hls_prefer_native": False,
+        })
+
+    if is_generic_site:
+        attempts.append({
+            "label": (
+                "Applying generic-site fallback with browser headers and a "
+                "simpler best-quality format.\n"
+            ),
+            "requires_aria2_failure": False,
+            "format_choice": GENERIC_SITE_FALLBACK_FORMAT,
+            "use_aria2": False,
+            "http_headers": generic_headers,
+            "hls_prefer_native": True,
+        })
+
+    last_exception = None
+    previous_failure_was_aria2 = False
+
+    for attempt_index, attempt in enumerate(attempts):
+        if attempt.get("requires_aria2_failure") and not previous_failure_was_aria2:
+            continue
+
+        if attempt["label"]:
+            append_terminal(attempt["label"])
+
+        ydl_opts, logger = build_ydl_options(
+            attempt["format_choice"],
+            target_folder,
+            download_thumbnail,
+            audio_only,
+            use_aria2=attempt["use_aria2"],
+            http_headers=attempt["http_headers"],
+            hls_prefer_native=attempt["hls_prefer_native"],
+        )
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                result = ydl.download([download_url])
+        except Exception as exc:
+            last_exception = exc
+
+            if attempt["use_aria2"] and (
+                logger.aria2_failed or is_aria2_failure_message(exc)
+            ):
+                previous_failure_was_aria2 = True
+                continue
+
+            previous_failure_was_aria2 = False
+
+            if attempt_index < len(attempts) - 1:
+                continue
+
+            raise
+
+        if attempt["use_aria2"] and result and logger.aria2_failed:
+            last_exception = RuntimeError("aria2c failed during download.")
+            previous_failure_was_aria2 = True
+            continue
+
+        aria2_enabled_after_download = use_aria2 and attempt["use_aria2"]
+        return result, aria2_enabled_after_download
+
+    if last_exception is not None:
+        raise last_exception
+
+    return 0, False
 
 
 def get_format_choice():
@@ -701,48 +912,28 @@ def run_command():
         reset_download_stats()
         start_elapsed_timer()
         append_terminal("Starting download...\n")
-
-        ydl_opts = {
-            "format": format_choice,
-            "merge_output_format": "mp4",
-            "noplaylist": False,
-            "retries": 10,
-            "fragment_retries": 10,
-            "ignoreerrors": True,
-            "extract_flat": False,
-            "progress_hooks": [progress_hook],
-            "logger": YTDLPLogger(),
-            "outtmpl": os.path.join(target_folder, "%(title)s.%(ext)s"),
-        }
+        aria2_enabled_for_batch = use_aria2
 
         if use_aria2:
-            ydl_opts["external_downloader"] = {
-                "default": ARIA2C_PATH,
-            }
-            ydl_opts["external_downloader_args"] = {
-                "default": ARIA2C_ARGS,
-            }
             append_terminal(
                 f"aria2c acceleration enabled ({' '.join(ARIA2C_ARGS)})\n"
             )
 
-        if download_thumbnail:
-            ydl_opts["writethumbnail"] = True
-            ydl_opts.setdefault("postprocessors", []).append({
-                "key": "FFmpegThumbnailsConvertor",
-                "format": "png"
-            })
-
-        if audio_only:
-            ydl_opts.setdefault("postprocessors", []).append({
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            })
-
         try:
+            generic_site = not is_youtube_like_url(url)
+            generic_headers = build_generic_site_headers(url) if generic_site else None
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_opts, _ = build_ydl_options(
+                format_choice,
+                target_folder,
+                download_thumbnail,
+                audio_only,
+                use_aria2=False,
+                http_headers=generic_headers,
+                hls_prefer_native=generic_site,
+            )
+
+            with yt_dlp.YoutubeDL(info_opts) as ydl:
 
                 info = ydl.extract_info(url, download=False)
 
@@ -754,16 +945,37 @@ def run_command():
                     run_on_ui(playlist_var.set, f"0 / {total}")
 
                     for i, entry in enumerate(entries, start=1):
-
                         run_on_ui(playlist_var.set, f"{i} / {total}")
+                        entry_url = entry.get("webpage_url") or entry.get("url")
 
-                        ydl.download([entry['webpage_url']])
+                        if not entry_url:
+                            append_terminal(
+                                "Skipping playlist item because no downloadable URL "
+                                "was returned.\n"
+                            )
+                            continue
+
+                        _, aria2_enabled_for_batch = download_url_with_fallback(
+                            entry_url,
+                            format_choice,
+                            target_folder,
+                            download_thumbnail,
+                            audio_only,
+                            aria2_enabled_for_batch,
+                        )
 
                 else:
 
                     run_on_ui(playlist_var.set, "1 / 1")
 
-                    ydl.download([url])
+                    download_url_with_fallback(
+                        url,
+                        format_choice,
+                        target_folder,
+                        download_thumbnail,
+                        audio_only,
+                        aria2_enabled_for_batch,
+                    )
 
             append_terminal("\nDownload complete\n")
 
@@ -797,7 +1009,7 @@ right_frame.pack_propagate(False)
 # =========================================================
 # URL INPUT
 # =========================================================
-Label(left_frame,text="YouTube URL / Playlist / Channel:",
+Label(left_frame,text="Video URL / Playlist / Channel:",
 bg="#2b2b2b",fg=ACCENT_COLOR,font=("Consolas",12)).pack(anchor="nw",padx=10,pady=(10,0))
 
 url_box = Text(left_frame,height=3,bg="#1e1e1e",fg=ACCENT_COLOR,
