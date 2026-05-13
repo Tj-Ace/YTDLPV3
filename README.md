@@ -1,75 +1,108 @@
-# YTDLP V3
+# YTDLPV3 + Desktop Launcher
 
-Thanks for downloading :)
+Lightweight By Design: **~240KB Core Project Size**.
 
----
+YTDLPV3 is a Windows desktop downloader built on `yt-dlp` with a custom UI, live terminal log, playlist support, Spotify support, and thumbnail controls.
+It also includes a separate desktop launcher for setup, reset, and maintenance tasks.
 
-## How To Download
+## What Is Included
 
-This requires Python. Everything else should install automatically.
+- `MainScript.py` (Main Downloader App)
+- `Desktop.py` (Desktop Launcher)
+- `Config.json` (Saved Settings)
+- `Defaults.json` (Reset / fallback defaults)
+- `favi.ico` (App Icon)
+- `Logs/` (Runtime Log Output)
 
-For the latest stable build:
-- Head over to **Releases**
-- Download the latest version for your platform
-- (For latest beta build download direct project files)
+## Main App Highlights
 
-(Windows only right now, Android APK planned)
+- Download modes: `Download Videos`, `Download Audio Only`, and `Download Thumbnails Only`
+- Optional `Include Thumbnail` toggle
+- Optional `Audio As MP4` mode (audio rendered into a black 16:9 MP4)
+- Playlist progress display with speed, ETA, elapsed time, and percent
+- Spotify links supported through `spotdl` (including playlists)
+- aria2c acceleration support with fallback logic
+- ffmpeg auto-detect and auto-install support
+- Forced image normalization to PNG for thumbnails/output images
+- Two UI layouts with persistent layout setting
+- Last selected quality is remembered in config
 
----
+## Desktop Launcher Highlights
 
-## Setup
+- `Auto Install Everything Needed`
+- `Create Desktop Shortcut`
+- `Pin To Start`
+- `Pin To Taskbar`
+- `Purge Files` (clears runtime/downloaded dependency folders and non-example logs)
+- `Reset Config To Defaults`
+- Dependency status panel for `yt-dlp`, `tkinterdnd2`, `aria2c`, and `ffmpeg`
+- Built-in launcher terminal log
 
-1. Extract the `.zip` wherever you want  
-2. Run `Desktop.py`  
+## Supported Inputs
 
-This will create a desktop shortcut to `MainScript.py` (the main script, duh)
+- YouTube videos, playlists, and channels
+- Many generic `yt-dlp` compatible video URLs
+- Spotify links (`open.spotify.com`, `spotify.link`)
 
-If you want, you can just manually run `MainScript.py` and it will open
+## Quick Start
 
----
+1. Install Python 3.10+ on Windows.
+2. Open this project folder.
+3. Run the launcher:
 
-## First Run
+```powershell
+py -3 Desktop.py
+```
 
-The first time you run it:
-- Required Python packages will install automatically  
+4. Click `Auto Install Everything Needed`.
+5. Start the downloader app:
 
----
+```powershell
+py -3 MainScript.py
+```
 
-## Config
+## App Workflow Notes
 
-There is a config file where you can change:
-- Colors  
-- Resolution  
-- Other small settings  
+- You must set a download location before starting a download.
+- If no location is set, the app prints an error to the terminal and stops.
+- Spotify links are treated as audio sources.
+- `Download Thumbnails Only` is not supported for Spotify mode.
+- `Include Thumbnail` is ignored for Spotify mode.
 
----
+## Configuration
 
-## Features
+Settings are saved in `Config.json`.
+Default reset/fallback values are read from `Defaults.json`.
 
-**Basic Video Downloading**  
-- MP4 format  
+Key values:
 
-**Drag and Drop GUI**  
-- Drop videos directly into the app  
+- `version`
+- `layout` (`"1"` or `"2"`)
+- `enable_layout_switch_easter_egg` (`false` by default)
+- `quality` (`"480p"`, `"720p"`, `"1080p"`, `"Max"`)
+- `default_download_location`
+- `fullscreen`
+- `Accent`
+- `Terminal`
+- `resolution.width`
+- `resolution.height`
 
-**Live Terminal Output**  
-- Progress bar  
-- ETA  
-- Detailed download info  
+## Easter Egg Setting
 
-**Aria2c Acceleration**  
-- Faster downloads :D  
+Double-click layout switching is controlled by config:
 
-**Audio Only Mode**  
-- MP3 format  
+- `enable_layout_switch_easter_egg: false` = disabled
+- `enable_layout_switch_easter_egg: true` = enabled
 
-**Thumbnail Download Toggle**  
-- PNG format  
+## Troubleshooting
 
-**Download Location Selection**  
-- Set custom defaults  
+- If thumbnails are not converting, verify `ffmpeg` is installed/detected.
+- If Spotify downloads fail, verify internet and that `spotdl` installed successfully.
+- If acceleration has issues, disable `Use Aria2c Acceleration` and retry.
+- If UI behavior feels off after many edits, use launcher `Reset Config To Defaults`.
 
-**Custom Config**  
-- Personalize colors and resolution  
+## Notes
 
----
+- Thumbnail/image outputs are normalized to PNG.
+- Some providers may have site-side limitations or anti-bot behavior.
+- The project is intentionally lightweight: **~240KB core size**.
