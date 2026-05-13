@@ -48,18 +48,7 @@ It also includes a separate desktop launcher for setup, reset, and maintenance t
 
 1. Install Python 3.10+ on Windows.
 2. Open this project folder.
-3. Run the launcher:
-
-```powershell
-py -3 Desktop.py
-```
-
-4. Click `Auto Install Everything Needed`.
-5. Start the downloader app:
-
-```powershell
-py -3 MainScript.py
-```
+3. Run Desktop.py
 
 ## App Workflow Notes
 
