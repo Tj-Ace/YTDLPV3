@@ -1,0 +1,14 @@
+{
+    "version": "3.0.0",
+    "layout": "2",
+    "enable_layout_switch_easter_egg": false,
+    "quality": "Max",
+    "fullscreen": false,
+    "Accent": "#b478fa",
+    "Terminal": "#00ff00",
+    "default_download_location": "",
+    "resolution": {
+        "width": 1200,
+        "height": 800
+    }
+}
