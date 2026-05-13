@@ -95,3 +95,4 @@ Double-click layout switching is controlled by config:
 - Thumbnail/image outputs are normalized to PNG.
 - Some providers may have site-side limitations or anti-bot behavior.
 - The project is intentionally lightweight: **~240KB core size**.
+- Yes This Was Vibe Coded, I Know Im Sorry
